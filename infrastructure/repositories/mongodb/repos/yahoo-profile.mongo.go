@@ -90,6 +90,83 @@ func (r *YahooProfileMongo) Close() {
 // Implement interface
 ///////////////////////////////////////////////////////////////////////////////
 
+// FindYahooProfilesByTickers finds all Yahoo profiles by tickers
+func (r *YahooProfileMongo) FindYahooProfilesByTickers(ctx context.Context, tickers []string) ([]*entities.YahooProfile, error) {
+	if len(tickers) < 1 {
+		return nil, nil
+	}
+
+	uppercaseTickers, err := stringsToUpperCase(tickers)
+	if err != nil {
+		r.log.Error(ctx, "strings to upper case failed", "error", err)
+		return nil, err
+	}
+
+	// create new context for the query
+	ctx, cancel := createContext(ctx, r.conf.TimeoutMS)
+	defer cancel()
+
+	// what collection we are going to use
+	colname, ok := r.conf.Colnames[consts.YAHOO_ASSET_PROFILES_COLLECTION]
+	if !ok {
+		r.log.Error(ctx, "cannot find collection name")
+		return nil, fmt.Errorf("cannot find collection name")
+	}
+	col := r.db.Collection(colname)
+
+	// filter
+	filter := bson.D{
+		{
+			Key: "ticker",
+			Value: bson.D{{
+				Key:   "$in",
+				Value: uppercaseTickers,
+			}},
+		},
+	}
+
+	// find options
+	findOptions := options.Find()
+
+	cur, err := col.Find(ctx, filter, findOptions)
+
+	// only run defer function when find success
+	if cur != nil {
+		defer func() {
+			if deferErr := cur.Close(ctx); deferErr != nil {
+				err = deferErr
+			}
+		}()
+	}
+
+	// find was not succeed
+	if err != nil {
+		r.log.Error(ctx, "find query failed", "error", err)
+		return nil, err
+	}
+
+	var yahooProfiles []*entities.YahooProfile
+
+	// iterate over the cursor to decode document one at a time
+	for cur.Next(ctx) {
+		// decode cursor to activity model
+		var yahooProfile entities.YahooProfile
+		if err = cur.Decode(&yahooProfile); err != nil {
+			r.log.Error(ctx, "decode failed", "error", err)
+			return nil, err
+		}
+
+		yahooProfiles = append(yahooProfiles, &yahooProfile)
+	}
+
+	if err := cur.Err(); err != nil {
+		r.log.Error(ctx, "iterate over cursor failed", "error", err)
+		return nil, err
+	}
+
+	return yahooProfiles, nil
+}
+
 // FindYahooProfiles finds all Yahoo profiles
 func (r *YahooProfileMongo) FindYahooProfiles(ctx context.Context) ([]*entities.YahooProfile, error) {
 	// create new context for the query

@@ -12,11 +12,17 @@ import (
 	"github.com/lenoobz/aws-yahoo-profile-norm-sectors/usecase/yahoo"
 )
 
+type YahooProfileSectorRequest struct {
+	Tickers []string `json:"tickers"`
+}
+
 func main() {
 	lambda.Start(lambdaHandler)
 }
 
-func lambdaHandler(ctx context.Context) {
+func lambdaHandler(ctx context.Context, req YahooProfileSectorRequest) {
+	log.Println("lambda handler is called")
+
 	appConf := config.AppConf
 
 	// create new logger
@@ -45,7 +51,7 @@ func lambdaHandler(ctx context.Context) {
 	breakdownService := breakdown.NewService(sectorBreakdownRepo, *yahooService, zap)
 
 	// try correlation context
-	if err := breakdownService.AddAssetSectorBreakdown(ctx); err != nil {
+	if err := breakdownService.AddAssetSectorBreakdownByTickers(ctx, req.Tickers); err != nil {
 		log.Fatal("add asset sector breakdown failed")
 	}
 }
