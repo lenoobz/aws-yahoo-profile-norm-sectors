@@ -29,6 +29,10 @@ var Sectors = []struct {
 		Code: "IND",
 	},
 	{
+		Name: "Financial",
+		Code: "FIN",
+	},
+	{
 		Name: "Financials",
 		Code: "FIN",
 	},
